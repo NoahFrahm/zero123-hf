@@ -3,7 +3,7 @@ import torch
 from pipeline_zero1to3 import Zero1to3StableDiffusionPipeline
 from diffusers.utils import load_image
 
-model_id = "kxic/zero123-165000" # zero123-105000, zero123-165000, zero123-xl, stable-zero123
+model_id = "kxic/stable-zero123" # zero123-105000, zero123-165000, zero123-xl, stable-zero123
 
 pipe = Zero1to3StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
 if "stable" in model_id:
