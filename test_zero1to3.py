@@ -3,7 +3,7 @@ import torch
 from pipeline_zero1to3 import Zero1to3StableDiffusionPipeline
 from diffusers.utils import load_image
 
-model_id = "kxic/stable-zero123" # zero123-105000, zero123-165000, zero123-xl, stable-zero123
+model_id = "kxic/zero123-165000" # zero123-105000, zero123-165000, zero123-xl, stable-zero123
 
 pipe = Zero1to3StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
 if "stable" in model_id:
@@ -19,7 +19,8 @@ num_images_per_prompt = 4
 # test inference pipeline
 # x y z, Polar angle (vertical rotation in degrees) 	Azimuth angle (horizontal rotation in degrees) 	Zoom (relative distance from center)
 query_pose1 = [-75.0, 100.0, 0.0]
-query_pose2 = [-20.0, 125.0, 0.0]
+query_pose2 = [-75.0, 100.0, 0.0]
+# query_pose2 = [-20.0, 125.0, 0.0]
 query_pose3 = [-55.0, 90.0, 0.0]
 
 # load image
@@ -59,6 +60,8 @@ input_images = pre_images
 images = pipe(input_imgs=input_images, prompt_imgs=input_images, poses=query_poses, height=H, width=W,
               guidance_scale=3.0, num_images_per_prompt=num_images_per_prompt, num_inference_steps=50).images
 
+# 7.5 -> object stayed more similar
+# 76 steps -> to much change
 
 # save imgs
 log_dir = "logs"

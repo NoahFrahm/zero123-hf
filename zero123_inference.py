@@ -90,7 +90,7 @@ def parse_arguments():
     return args
 
 
-def load_model(gpu_index, logger, model_id="kxic/zero123-xl"):
+def load_model(gpu_index, logger, model_id="kxic/stable-zero123"):
     """
     Loads the Zero1to3StableDiffusionPipeline model onto the specified GPU.
     """
@@ -116,7 +116,7 @@ def load_model(gpu_index, logger, model_id="kxic/zero123-xl"):
         raise
 
 
-def run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=4, guidance_scale=3.0, inference_steps=50, log_dir="logs"):
+def run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=1, guidance_scale=3.0, inference_steps=50, log_dir="logs"):
     """
     Runs the inference pipeline on the provided images and poses.
 
@@ -167,7 +167,7 @@ def run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=4, gui
         ).images
         
         # Save generated images
-        logging.info(f"Saving generated images to '{log_dir}' directory...")
+        logger.info(f"Saving generated images to '{log_dir}' directory...")
         os.makedirs(log_dir, exist_ok=True)
         batch_size = len(pre_images)
         image_index = 0
@@ -176,14 +176,15 @@ def run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=4, gui
                 if image_index >= len(images):
                     break
                 img = images[image_index]
-                save_path = os.path.join(log_dir, f"obj{obj_idx}_{img_num}.jpg")
+                original_image_path = image_paths[obj_idx]
+                save_path = os.path.join(log_dir, original_image_path.split('/')[-1])
                 img.save(save_path)
-                logging.debug(f"Saved image: {save_path}")
+                logger.info(f"Saved image: {save_path}")
                 image_index += 1
-        logging.info("All generated images have been saved successfully.")
+        logger.info("All generated images have been saved successfully.")
         
     except Exception as e:
-        logging.error(f"Inference failed: {e}")
+        logger.error(f"Inference failed: {e}")
         raise
 
 
@@ -216,7 +217,7 @@ def main():
     # Run inference
     run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=4, guidance_scale=3.0, inference_steps=50, log_dir=log_dir)
     
-    logging.info("Inference pipeline completed successfully.")
+    logger.info("Inference pipeline completed successfully.")
 
 
 if __name__ == "__main__":
