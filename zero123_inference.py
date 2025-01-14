@@ -52,6 +52,14 @@ def parse_arguments():
         required=True, 
         help='Paths to input images'
     )
+
+    parser.add_argument(
+        '--dest_image_names', 
+        type=str, 
+        nargs='+', 
+        required=True, 
+        help='Indices for destination images'
+    )
     
     parser.add_argument(
         '--poses', 
@@ -64,7 +72,7 @@ def parse_arguments():
     parser.add_argument(
         '--num_images_per_prompt',
         type=int,
-        default=4,
+        default=1,
         help='Number of images to generate per prompt (default: 4)'
     )
     
@@ -73,6 +81,13 @@ def parse_arguments():
         type=str,
         default="logs",
         help='Directory to save generated images (default: logs)'
+    )
+
+    parser.add_argument(
+        '--model',
+        type=str,
+        default="kxic/stable-zero123",
+        help='Model to run'
     )
     
     args = parser.parse_args()
@@ -95,6 +110,11 @@ def load_model(gpu_index, logger, model_id="kxic/stable-zero123"):
     Loads the Zero1to3StableDiffusionPipeline model onto the specified GPU.
     """
 
+    # "kxic/stable-zero123"
+    # "kxic/zero123-165000"
+    # ashawkey/zero123-xl-diffusers
+    # model_id = "kxic/zero123-xl" # zero123-105000, zero123-165000, zero123-xl, stable-zero123
+
     try:
         logger.info(f"Loading model '{model_id}' on GPU:{gpu_index}...")
         pipe = Zero1to3StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
@@ -116,7 +136,7 @@ def load_model(gpu_index, logger, model_id="kxic/stable-zero123"):
         raise
 
 
-def run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=1, guidance_scale=3.0, inference_steps=50, log_dir="logs"):
+def run_inference(pipe, image_paths, poses, out_names, logger, target_resolution=(512,512), num_images_per_prompt=1, guidance_scale=3.0, inference_steps=50, log_dir="logs"):
     """
     Runs the inference pipeline on the provided images and poses.
 
@@ -127,65 +147,68 @@ def run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=1, gui
         num_images_per_prompt (int): Number of images to generate per prompt.
         log_dir (str): Directory to save the generated images.
     """
-    try:
-        # Initialize Carvekit interface
-        logger.info("Instantiating Carvekit HiInterface...")
-        models = {'carvekit': create_carvekit_interface()}
+    # try:
+    # Initialize Carvekit interface
+    logger.info("Instantiating Carvekit HiInterface...")
+    models = {'carvekit': create_carvekit_interface()}
+    
+    pre_images = []
+    heights = []
+    widths = []
+    
+    # Load and preprocess images
+    logger.info("Loading and preprocessing images...")
+    for img_path in image_paths:
+        raw_im = load_image(img_path)
+        input_im = preprocess_image(models, raw_im, True)
+        H, W = input_im.shape[:2]
+        heights.append(H)
+        widths.append(W)
+        pre_images.append(Image.fromarray((input_im * 255.0).astype(np.uint8)))
+    
+    # Ensure all images have the same dimensions
+    if len(set(heights)) != 1 or len(set(widths)) != 1:
+        raise ValueError("All preprocessed images must have the same dimensions.")
+    
+    H, W = heights[0], widths[0]
+    logger.info(f"All images resized to (Height: {H}, Width: {W}).")
+    
+    # Run inference
+    logger.info("Running inference pipeline...")
+    images = pipe(
+        input_imgs=pre_images, 
+        prompt_imgs=pre_images, 
+        poses=poses, 
+        height=H, 
+        width=W,
+        guidance_scale=guidance_scale, 
+        num_images_per_prompt=num_images_per_prompt, 
+        num_inference_steps=inference_steps
+    ).images
+    
+    # Save generated images
+    logger.info(f"Saving generated images to '{log_dir}' directory...")
+    os.makedirs(log_dir, exist_ok=True)
+    batch_size = len(pre_images)
+    image_index = 0
+    for obj_idx in range(batch_size):
+        for img_num in range(num_images_per_prompt):
+            if image_index >= len(images):
+                break
+
+            save_path = os.path.join(log_dir, f"{out_names[image_index]}")
+
+            img = images[image_index]
+            img = img.resize(target_resolution, resample=Image.Resampling.LANCZOS)
+            img.save(save_path)
+            
+            logger.info(f"Saved image: {save_path}")
+            image_index += 1
+    logger.info("All generated images have been saved successfully.")
         
-        pre_images = []
-        heights = []
-        widths = []
-        
-        # Load and preprocess images
-        logger.info("Loading and preprocessing images...")
-        for img_path in image_paths:
-            raw_im = load_image(img_path)
-            input_im = preprocess_image(models, raw_im, True)
-            H, W = input_im.shape[:2]
-            heights.append(H)
-            widths.append(W)
-            pre_images.append(Image.fromarray((input_im * 255.0).astype(np.uint8)))
-        
-        # Ensure all images have the same dimensions
-        if len(set(heights)) != 1 or len(set(widths)) != 1:
-            raise ValueError("All preprocessed images must have the same dimensions.")
-        
-        H, W = heights[0], widths[0]
-        logger.info(f"All images resized to (Height: {H}, Width: {W}).")
-        
-        # Run inference
-        logger.info("Running inference pipeline...")
-        images = pipe(
-            input_imgs=pre_images, 
-            prompt_imgs=pre_images, 
-            poses=poses, 
-            height=H, 
-            width=W,
-            guidance_scale=guidance_scale, 
-            num_images_per_prompt=num_images_per_prompt, 
-            num_inference_steps=inference_steps
-        ).images
-        
-        # Save generated images
-        logger.info(f"Saving generated images to '{log_dir}' directory...")
-        os.makedirs(log_dir, exist_ok=True)
-        batch_size = len(pre_images)
-        image_index = 0
-        for obj_idx in range(batch_size):
-            for img_num in range(num_images_per_prompt):
-                if image_index >= len(images):
-                    break
-                img = images[image_index]
-                original_image_path = image_paths[obj_idx]
-                save_path = os.path.join(log_dir, original_image_path.split('/')[-1])
-                img.save(save_path)
-                logger.info(f"Saved image: {save_path}")
-                image_index += 1
-        logger.info("All generated images have been saved successfully.")
-        
-    except Exception as e:
-        logger.error(f"Inference failed: {e}")
-        raise
+    # except Exception as e:
+    #     logger.error(f"Inference failed: {e}")
+    #     raise
 
 
 def main():
@@ -200,6 +223,7 @@ def main():
     poses = args.poses
     num_images_per_prompt = args.num_images_per_prompt
     log_dir = args.out_dir
+    out_names = args.dest_image_names
 
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'generation.log')
@@ -212,10 +236,10 @@ def main():
     logger.info(f"Number of poses: {len(poses)}")
     
     # Load the model
-    pipe = load_model(gpu_index, logger)
+    pipe = load_model(gpu_index, logger, model_id=args.model)
     
     # Run inference
-    run_inference(pipe, image_paths, poses, logger, num_images_per_prompt=4, guidance_scale=3.0, inference_steps=50, log_dir=log_dir)
+    run_inference(pipe, image_paths, poses, out_names, logger, num_images_per_prompt=num_images_per_prompt, guidance_scale=3.0, inference_steps=50, log_dir=log_dir)
     
     logger.info("Inference pipeline completed successfully.")
 

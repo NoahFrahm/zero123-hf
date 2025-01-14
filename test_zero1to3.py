@@ -19,8 +19,8 @@ num_images_per_prompt = 4
 # test inference pipeline
 # x y z, Polar angle (vertical rotation in degrees) 	Azimuth angle (horizontal rotation in degrees) 	Zoom (relative distance from center)
 query_pose1 = [-75.0, 100.0, 0.0]
-query_pose2 = [-75.0, 100.0, 0.0]
-# query_pose2 = [-20.0, 125.0, 0.0]
+# query_pose2 = [-75.0, 100.0, 0.0]
+query_pose2 = [-20.0, 125.0, 0.0]
 query_pose3 = [-55.0, 90.0, 0.0]
 
 # load image
