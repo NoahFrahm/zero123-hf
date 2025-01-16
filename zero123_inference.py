@@ -147,68 +147,69 @@ def run_inference(pipe, image_paths, poses, out_names, logger, target_resolution
         num_images_per_prompt (int): Number of images to generate per prompt.
         log_dir (str): Directory to save the generated images.
     """
-    # try:
-    # Initialize Carvekit interface
-    logger.info("Instantiating Carvekit HiInterface...")
-    models = {'carvekit': create_carvekit_interface()}
     
-    pre_images = []
-    heights = []
-    widths = []
-    
-    # Load and preprocess images
-    logger.info("Loading and preprocessing images...")
-    for img_path in image_paths:
-        raw_im = load_image(img_path)
-        input_im = preprocess_image(models, raw_im, True)
-        H, W = input_im.shape[:2]
-        heights.append(H)
-        widths.append(W)
-        pre_images.append(Image.fromarray((input_im * 255.0).astype(np.uint8)))
-    
-    # Ensure all images have the same dimensions
-    if len(set(heights)) != 1 or len(set(widths)) != 1:
-        raise ValueError("All preprocessed images must have the same dimensions.")
-    
-    H, W = heights[0], widths[0]
-    logger.info(f"All images resized to (Height: {H}, Width: {W}).")
-    
-    # Run inference
-    logger.info("Running inference pipeline...")
-    images = pipe(
-        input_imgs=pre_images, 
-        prompt_imgs=pre_images, 
-        poses=poses, 
-        height=H, 
-        width=W,
-        guidance_scale=guidance_scale, 
-        num_images_per_prompt=num_images_per_prompt, 
-        num_inference_steps=inference_steps
-    ).images
-    
-    # Save generated images
-    logger.info(f"Saving generated images to '{log_dir}' directory...")
-    os.makedirs(log_dir, exist_ok=True)
-    batch_size = len(pre_images)
-    image_index = 0
-    for obj_idx in range(batch_size):
-        for img_num in range(num_images_per_prompt):
-            if image_index >= len(images):
-                break
-
-            save_path = os.path.join(log_dir, f"{out_names[image_index]}")
-
-            img = images[image_index]
-            img = img.resize(target_resolution, resample=Image.Resampling.LANCZOS)
-            img.save(save_path)
-            
-            logger.info(f"Saved image: {save_path}")
-            image_index += 1
-    logger.info("All generated images have been saved successfully.")
+    try:
+        # Initialize Carvekit interface
+        logger.info("Instantiating Carvekit HiInterface...")
+        models = {'carvekit': create_carvekit_interface()}
         
-    # except Exception as e:
-    #     logger.error(f"Inference failed: {e}")
-    #     raise
+        pre_images = []
+        heights = []
+        widths = []
+        
+        # Load and preprocess images
+        logger.info("Loading and preprocessing images...")
+        for img_path in image_paths:
+            raw_im = load_image(img_path)
+            input_im = preprocess_image(models, raw_im, True)
+            H, W = input_im.shape[:2]
+            heights.append(H)
+            widths.append(W)
+            pre_images.append(Image.fromarray((input_im * 255.0).astype(np.uint8)))
+        
+        # Ensure all images have the same dimensions
+        if len(set(heights)) != 1 or len(set(widths)) != 1:
+            raise ValueError("All preprocessed images must have the same dimensions.")
+        
+        H, W = heights[0], widths[0]
+        logger.info(f"All images resized to (Height: {H}, Width: {W}).")
+        
+        # Run inference
+        logger.info("Running inference pipeline...")
+        images = pipe(
+            input_imgs=pre_images, 
+            prompt_imgs=pre_images, 
+            poses=poses, 
+            height=H, 
+            width=W,
+            guidance_scale=guidance_scale, 
+            num_images_per_prompt=num_images_per_prompt, 
+            num_inference_steps=inference_steps
+        ).images
+        
+        # Save generated images
+        logger.info(f"Saving generated images to '{log_dir}' directory...")
+        os.makedirs(log_dir, exist_ok=True)
+        batch_size = len(pre_images)
+        image_index = 0
+        for obj_idx in range(batch_size):
+            for img_num in range(num_images_per_prompt):
+                if image_index >= len(images):
+                    break
+
+                save_path = os.path.join(log_dir, f"{out_names[image_index]}")
+
+                img = images[image_index]
+                img = img.resize(target_resolution, resample=Image.Resampling.LANCZOS)
+                img.save(save_path)
+                
+                logger.info(f"Saved image: {save_path}")
+                image_index += 1
+        logger.info("All generated images have been saved successfully.")
+        
+    except Exception as e:
+        logger.error(f"Inference failed: {e}")
+        raise
 
 
 def main():
@@ -228,6 +229,13 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'generation.log')
     logger = setup_global_logger(log_file)
+
+    if torch.cuda.is_available():
+        logger.info(f"Number of CUDA devices available: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            logger.info(f"Device {i}: {torch.cuda.get_device_name(i)}")
+    else:
+        logger.info("No CUDA devices available.")
 
     
     logger.info("Starting the Zero1to3 Inference Pipeline...")
